@@ -35,27 +35,20 @@ fn solve2(input: &str) -> u64 {
 
     let mut sum = 0;
     for line in input {
-        fn h(i: usize, depth: usize, batteries: &[u8], bank: &mut [u8; 12], max: u64) -> u64 {
-            let mut max = max;
-            for j in i..batteries.len() {
-                bank[depth] = batteries[j];
-
-                let bank = if depth == 11 {
-                    str::from_utf8(bank).unwrap().parse().unwrap()
-                } else {
-                    h(j+1, depth+1, batteries, bank, max)
-                };
-
-                if bank > max {
-                    max = bank;
-                }
+        fn h(depth: usize, batteries: &[u8], bank: &mut [u8; 12]) -> u64 {
+            if depth == 12 || batteries.is_empty() {
+                str::from_utf8(bank).unwrap().parse().unwrap()
+            } else {
+                let (n, digit) = batteries.iter().enumerate().rev()
+                    .skip(11-depth)
+                    .max_by_key(|(_, digit)| *digit).unwrap();
+                bank[depth] = *digit;
+                become h( depth+1, &batteries[n+1..], bank)
             }
-            max
         }
 
         let mut bank = [b'0';12];
-        let res = h(0, 0, line, &mut bank, 0);
-        dbg!(res);
+        let res = h( 0, line, &mut bank);
         sum += res;
     }
 
