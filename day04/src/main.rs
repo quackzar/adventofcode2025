@@ -1,10 +1,7 @@
 #![feature(ascii_char)]
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Field { Paper, Empty }
-
-fn parse(input: &str) -> HashMap<(isize, isize), Field> {
+fn parse(input: &str) -> HashSet<(isize, isize)> {
     input.lines()
         .map(str::bytes)
         .enumerate()
@@ -12,48 +9,34 @@ fn parse(input: &str) -> HashMap<(isize, isize), Field> {
             b.enumerate()
             .map(move |(j, c)| ((i as isize, j as isize), c))
         )
-        .map(|(pos, field)| match field {
-            b'@' => (pos, Field::Paper),
-            b'.' => (pos, Field::Empty),
-            _ => {
-                let field = field.as_ascii().unwrap();
-                panic!("unknown: '{field:?}'")
-            }
+        .filter_map(|(pos, field)| match field {
+            b'@' => Some(pos),
+            _ => None,
         })
         .collect()
 }
 
 fn solve1(input: &str) -> u64 {
-    let diagram = parse(input);
-    let rolls = diagram.iter().filter(|(_,x)| **x == Field::Paper)
-        .map(|(pos, _)| pos)
-        .cloned();
-
+    let rolls = parse(input);
     let mut total = 0;
 
-    for (x,y) in rolls {
+    for (x,y) in rolls.iter().cloned() {
         let mut neighbours: u32 = 0;
         for i in [x-1, x, x+1] {
             for j in [y-1, y, y+1] {
                 if (x,y) == (i,j) { continue } // skip self
-                if let Some(Field::Paper) = diagram.get(&(i,j)) { neighbours += 1 }
+                if rolls.contains(&(i,j)) { neighbours += 1 }
             }
         }
         if neighbours < 4 {
             total += 1;
         }
     }
-
     total
 }
 
 fn solve2(input: &str) -> u64 {
-    let diagram = parse(input);
-    let mut rolls: HashSet<_> = diagram.iter().filter(|(_,x)| **x == Field::Paper)
-        .map(|(pos, _)| pos)
-        .cloned()
-        .collect();
-
+    let mut rolls = parse(input);
     let rolls_beginning = rolls.len();
 
     loop {
@@ -72,13 +55,7 @@ fn solve2(input: &str) -> u64 {
             neighbours >= 4
         });
 
-        if rolls.len() < image.len() {
-            let m = image.len() - rolls.len();
-            println!("removed {m}");
-            continue
-        } else {
-            break
-        }
+        if rolls.len() == image.len() { break }
     }
 
     (rolls_beginning - rolls.len()) as u64
@@ -112,11 +89,11 @@ mod tests {
 
     #[test]
     fn part1() {
-        assert_eq!(solve1(&INPUT), 13);
+        assert_eq!(solve1(INPUT), 13);
     }
 
     #[test]
     fn part2() {
-        assert_eq!(solve2(&INPUT), 43);
+        assert_eq!(solve2(INPUT), 43);
     }
 }
