@@ -3,10 +3,9 @@
 
 use std::ascii::Char;
 
-
-
 fn parse(input: &str) -> Vec<i16> {
-    input.lines()
+    input
+        .lines()
         .filter(|line| !line.is_empty())
         .map(|line| {
             let line = line.as_ascii().unwrap();
@@ -16,9 +15,10 @@ fn parse(input: &str) -> Vec<i16> {
             match dir {
                 Char::CapitalL => -num,
                 Char::CapitalR => num,
-                _ => panic!("Not supposed to happen: dir {dir}")
+                _ => panic!("Not supposed to happen: dir {dir}"),
             }
-        }).collect()
+        })
+        .collect()
 }
 
 fn solve1(input: &[i16]) -> u32 {
@@ -34,7 +34,6 @@ fn solve1(input: &[i16]) -> u32 {
     }
     zeros
 }
-
 
 fn solve2(input: &[i16]) -> i16 {
     let mut dial: i16 = 50;
@@ -63,7 +62,6 @@ fn main() {
     let res = solve2(&input);
     println!("Solution 2: {res}");
 }
-
 
 #[cfg(test)]
 mod tests {

@@ -3,18 +3,17 @@
 #![allow(clippy::needless_range_loop)]
 
 fn solve1(input: &str) -> u64 {
-    let input = input.lines()
-        .map(str::as_bytes);
+    let input = input.lines().map(str::as_bytes);
 
     let mut sum = 0;
     for line in input {
         let n = line.len();
-        let mut bank = [0u8;2];
+        let mut bank = [0u8; 2];
 
         let mut max = 0;
         for i in 0..n {
             bank[0] = line[i];
-            for j in i+1..n {
+            for j in i + 1..n {
                 bank[1] = line[j];
 
                 let bank: u8 = str::from_utf8(&bank).unwrap().parse().unwrap();
@@ -30,8 +29,7 @@ fn solve1(input: &str) -> u64 {
 }
 
 fn solve2(input: &str) -> u64 {
-    let input = input.lines()
-        .map(str::as_bytes);
+    let input = input.lines().map(str::as_bytes);
 
     let mut sum = 0;
     for line in input {
@@ -39,16 +37,20 @@ fn solve2(input: &str) -> u64 {
             if depth == 12 || batteries.is_empty() {
                 str::from_utf8(bank).unwrap().parse().unwrap()
             } else {
-                let (n, digit) = batteries.iter().enumerate().rev()
-                    .skip(11-depth)
-                    .max_by_key(|(_, digit)| *digit).unwrap();
+                let (n, digit) = batteries
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .skip(11 - depth)
+                    .max_by_key(|(_, digit)| *digit)
+                    .unwrap();
                 bank[depth] = *digit;
-                become h( depth+1, &batteries[n+1..], bank)
+                become h(depth + 1, &batteries[n + 1..], bank)
             }
         }
 
-        let mut bank = [b'0';12];
-        let res = h( 0, line, &mut bank);
+        let mut bank = [b'0'; 12];
+        let res = h(0, line, &mut bank);
         sum += res;
     }
 
@@ -64,7 +66,6 @@ fn main() {
     let res = solve2(&input);
     println!("Solution 2: {res}");
 }
-
 
 #[cfg(test)]
 mod tests {

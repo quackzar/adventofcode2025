@@ -1,58 +1,56 @@
-
-
 fn solve1(input: &str) -> u64 {
-    let input : Vec<_> = input.trim().split(',')
+    let input: Vec<_> = input
+        .trim()
+        .split(',')
         .map(|range| {
             let Some((fst, snd)) = range.split_once('-') else {
                 panic!("Could not parse: {range}");
             };
-            let fst : u64 = fst.parse().unwrap();
-            let snd : u64 = snd.trim_end().parse().unwrap();
+            let fst: u64 = fst.parse().unwrap();
+            let snd: u64 = snd.trim_end().parse().unwrap();
             (fst, snd)
-        }).collect();
-
+        })
+        .collect();
 
     let mut sum = 0;
     for (start, end) in input {
-
         for id in start..=end {
             let id = id.to_string().into_bytes();
-            let n =  id.len();
-            let left = &id[..n/2];
-            let right = &id[n/2..];
+            let n = id.len();
+            let left = &id[..n / 2];
+            let right = &id[n / 2..];
             let left = str::from_utf8(left).unwrap();
             let right = str::from_utf8(right).unwrap();
             if left == right {
-                let id : u64 = str::from_utf8(&id).unwrap().parse().unwrap();
+                let id: u64 = str::from_utf8(&id).unwrap().parse().unwrap();
                 sum += id;
             }
-
         }
-
     }
 
     sum
 }
 
 fn solve2(input: &str) -> u64 {
-    let input : Vec<_> = input.trim().split(',')
+    let input: Vec<_> = input
+        .trim()
+        .split(',')
         .map(|range| {
             let Some((fst, snd)) = range.split_once('-') else {
                 panic!("Could not parse: {range}");
             };
-            let fst : u64 = fst.parse().unwrap();
-            let snd : u64 = snd.trim_end().parse().unwrap();
+            let fst: u64 = fst.parse().unwrap();
+            let snd: u64 = snd.trim_end().parse().unwrap();
             (fst, snd)
-        }).collect();
-
+        })
+        .collect();
 
     let mut sum = 0;
     for (start, end) in input {
-
         for id in start..=end {
             let id = id.to_string().into_bytes();
-            let n =  id.len();
-            'outer: for k in (1..=n/2).rev() {
+            let n = id.len();
+            'outer: for k in (1..=n / 2).rev() {
                 let mut segments = id.chunks(k);
                 let first_segment: &[u8] = segments.next().unwrap();
                 for segment in segments {
@@ -60,13 +58,11 @@ fn solve2(input: &str) -> u64 {
                         continue 'outer;
                     }
                 }
-                let id : u64 = str::from_utf8(&id).unwrap().parse().unwrap();
+                let id: u64 = str::from_utf8(&id).unwrap().parse().unwrap();
                 sum += id;
                 break 'outer;
             }
-
         }
-
     }
 
     sum
@@ -81,7 +77,6 @@ fn main() {
     let res = solve2(&input);
     println!("Solution 2: {res}");
 }
-
 
 #[cfg(test)]
 mod tests {
