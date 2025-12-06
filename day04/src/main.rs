@@ -2,13 +2,14 @@
 use std::collections::HashSet;
 
 fn parse(input: &str) -> HashSet<(isize, isize)> {
-    input.lines()
+    input
+        .lines()
         .map(str::bytes)
         .enumerate()
-        .flat_map(|(i, b)|
+        .flat_map(|(i, b)| {
             b.enumerate()
-            .map(move |(j, c)| ((i as isize, j as isize), c))
-        )
+                .map(move |(j, c)| ((i as isize, j as isize), c))
+        })
         .filter_map(|(pos, field)| match field {
             b'@' => Some(pos),
             _ => None,
@@ -20,12 +21,16 @@ fn solve1(input: &str) -> u64 {
     let rolls = parse(input);
     let mut total = 0;
 
-    for (x,y) in rolls.iter().cloned() {
+    for (x, y) in rolls.iter().cloned() {
         let mut neighbours: u32 = 0;
-        for i in [x-1, x, x+1] {
-            for j in [y-1, y, y+1] {
-                if (x,y) == (i,j) { continue } // skip self
-                if rolls.contains(&(i,j)) { neighbours += 1 }
+        for i in [x - 1, x, x + 1] {
+            for j in [y - 1, y, y + 1] {
+                if (x, y) == (i, j) {
+                    continue;
+                } // skip self
+                if rolls.contains(&(i, j)) {
+                    neighbours += 1
+                }
             }
         }
         if neighbours < 4 {
@@ -42,12 +47,14 @@ fn solve2(input: &str) -> u64 {
     loop {
         let image = rolls.clone();
         rolls.retain(|pos| {
-            let (x,y) = *pos;
+            let (x, y) = *pos;
             let mut neighbours: u32 = 0;
-            for i in [x-1, x, x+1] {
-                for j in [y-1, y, y+1] {
-                    if (x,y) == (i,j) { continue } // skip self
-                    if image.contains(&(i,j)) {
+            for i in [x - 1, x, x + 1] {
+                for j in [y - 1, y, y + 1] {
+                    if (x, y) == (i, j) {
+                        continue;
+                    } // skip self
+                    if image.contains(&(i, j)) {
                         neighbours += 1;
                     }
                 }
@@ -55,7 +62,9 @@ fn solve2(input: &str) -> u64 {
             neighbours >= 4
         });
 
-        if rolls.len() == image.len() { break }
+        if rolls.len() == image.len() {
+            break;
+        }
     }
 
     (rolls_beginning - rolls.len()) as u64

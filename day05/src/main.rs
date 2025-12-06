@@ -11,27 +11,27 @@ fn main() {
     println!("Solution 2: {res}");
 }
 
-
 fn solve1(input: &str) -> u64 {
     let mut ranges = BTreeSet::new();
     let mut input = input.lines();
     for line in input.by_ref() {
-        if line.is_empty() { break };
+        if line.is_empty() {
+            break;
+        };
         let (begin, end) = line.split_once('-').unwrap();
         let begin: u64 = begin.parse().unwrap();
         let end: u64 = end.parse().unwrap();
         ranges.insert((begin, end));
     }
 
-    let ids: Vec<u64> = input.map(str::parse)
-        .try_collect().unwrap();
+    let ids: Vec<u64> = input.map(str::parse).try_collect().unwrap();
 
     let mut fresh = 0;
     for id in ids {
         for &(begin, end) in ranges.iter() {
             if begin <= id && id <= end {
                 fresh += 1;
-                break
+                break;
             }
         }
     }
@@ -43,7 +43,9 @@ fn solve2(input: &str) -> u64 {
     let mut ranges = Vec::new();
     let mut input = input.lines();
     for line in input.by_ref() {
-        if line.is_empty() { break };
+        if line.is_empty() {
+            break;
+        };
         let (begin, end) = line.split_once('-').unwrap();
         let begin: u64 = begin.parse().unwrap();
         let end: u64 = end.parse().unwrap();
@@ -52,7 +54,7 @@ fn solve2(input: &str) -> u64 {
 
     // optimize
     let mut disjoint = Vec::new();
-    ranges.sort_by_key(|&(begin, _)|begin);
+    ranges.sort_by_key(|&(begin, _)| begin);
     let mut ranges: VecDeque<_> = ranges.into();
     loop {
         // invariant: first pair is always starts before second pair
@@ -60,9 +62,9 @@ fn solve2(input: &str) -> u64 {
         let Some((f1, t1)) = ranges.pop_front() else {
             // none left
             disjoint.push((f0, t0));
-            break
+            break;
         };
-        if  t1 <= t0 {
+        if t1 <= t0 {
             // the second range is irrelevant as it is shorter
             ranges.push_front((f0, t0));
         } else if f1 <= t0 {
@@ -76,7 +78,7 @@ fn solve2(input: &str) -> u64 {
         }
     }
 
-    let mut total_fresh =  0;
+    let mut total_fresh = 0;
     for (begin, end) in disjoint {
         // add one since they are inclusive
         println!("{begin}-{end}");
