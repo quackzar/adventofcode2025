@@ -3,18 +3,13 @@ use std::{collections::{HashMap, HashSet}, hash::Hash};
 
 use itertools::Itertools;
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct Point {
     x: u64,
     y: u64,
     z: u64
 }
 
-impl PartialOrd for Point {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.dist(&Default::default()).partial_cmp(&other.dist(&Default::default()))
-    }
-}
 
 impl Point {
     fn dist(&self, other: &Self) -> u64 {
@@ -26,7 +21,7 @@ impl Point {
 }
 
 fn solve1(input: &str) -> u64 {
-    let mut junction_boxes : HashSet<_> = input.lines()
+    let junction_boxes : HashSet<_> = input.lines()
         .map(|s| {
             let [x,y,z] = s.split(',').take(3)
                 .map(str::parse::<u64>)
@@ -35,25 +30,41 @@ fn solve1(input: &str) -> u64 {
             Point { x, y, z }
         }).collect();
 
-    let mut circuits: HashMap<Point, HashSet<Point>> = HashMap::new();
+    let mut circuits: HashMap<Point, HashSet<Point>> = HashMap::from_iter(
+        junction_boxes.iter().copied().map(|j| (j, [j].into()))
+    );
     for _ in 0..10 {
         let Some((j1,j2)) = junction_boxes.iter()
             .cartesian_product(junction_boxes.iter())
+            .map(|(j1, j2)| {
+                if j1 < j2 {(j1, j2)} else {(j2, j1)}
+            })
+            .unique()
             .filter(|(j1,j2)| {
-                let circuit = circuits.entry(**j1).or_default();
-                !circuit.contains(*j2)
+                !circuits[j1].contains(j2)
             })
             .min_by_key(|(j1,j2)| j1.dist(j2) ) else { break };
 
+        let dist = j1.dist(j2);
+        println!("{j1:?} -> {j2:?} (dist: {dist})");
         circuits.entry(*j1).or_default().insert(*j2);
-        circuits.entry(*j2).or_default().insert(*j1);
     }
 
-    dbg!(&circuits);
+    for i in 0..8 {
+        let total = circuits.values()
+            .map(HashSet::len)
+            .filter(|&n| n==i)
+            .count();
+
+        println!("{total} with {i}");
+    }
 
     circuits.values()
         .map(HashSet::len)
-        .map(|x| x > 0)
+        .sorted()
+        .rev()
+        .take(3)
+        .filter(|&x| x > 0)
         .map(u64::try_from)
         .map(Result::unwrap)
         .product()
