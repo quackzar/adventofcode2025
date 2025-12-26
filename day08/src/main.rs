@@ -1,6 +1,6 @@
-#![feature(iterator_try_collect)]
-use std::{collections::{HashMap, HashSet}, hash::Hash};
+use std::{cell::RefCell, rc::Rc};
 
+use rustc_hash::{FxHashMap, FxHashSet};
 use itertools::Itertools;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -21,7 +21,7 @@ impl Point {
 }
 
 fn solve1(input: &str) -> u64 {
-    let junction_boxes : HashSet<_> = input.lines()
+    let junction_boxes : Vec<_> = input.lines()
         .map(|s| {
             let [x,y,z] = s.split(',').take(3)
                 .map(str::parse::<u64>)
@@ -30,43 +30,73 @@ fn solve1(input: &str) -> u64 {
             Point { x, y, z }
         }).collect();
 
-    let mut circuits: HashMap<Point, HashSet<Point>> = HashMap::from_iter(
-        junction_boxes.iter().copied().map(|j| (j, [j].into()))
-    );
-    for _ in 0..10 {
-        let Some((j1,j2)) = junction_boxes.iter()
-            .cartesian_product(junction_boxes.iter())
-            .map(|(j1, j2)| {
-                if j1 < j2 {(j1, j2)} else {(j2, j1)}
-            })
-            .unique()
-            .filter(|(j1,j2)| {
-                !circuits[j1].contains(j2)
-            })
-            .min_by_key(|(j1,j2)| j1.dist(j2) ) else { break };
+    let n = junction_boxes.len();
 
-        let dist = j1.dist(j2);
-        println!("{j1:?} -> {j2:?} (dist: {dist})");
-        circuits.entry(*j1).or_default().insert(*j2);
+    let jbs0 = junction_boxes.iter();
+    let jbs1 = junction_boxes.iter();
+
+    // sparse graph of connections
+    type SharedSet = Rc<RefCell<FxHashSet<Point>>>;
+    let mut net: FxHashMap<Point, SharedSet> = FxHashMap::default();
+
+    jbs0.cartesian_product(jbs1)
+        .sorted_unstable_by_key(|(jb0, jb1)| jb0.dist(jb1))
+        .skip(n) // skip the ones where we connect ourselves.
+        .map(|(jb0, jb1)| {
+            if jb0 < jb1 { (jb0, jb1) } else { (jb1, jb0) }
+        })
+        .unique()
+        .take(10)
+        .for_each(|(&jb0, &jb1)| {
+            let len = jb0.dist(&jb1);
+            println!("{jb0:?} and {jb1:?}: {len}");
+            let pair = net.get_disjoint_mut([&jb0, &jb1]);
+            match pair {
+                [Some(set0), Some(set1)] => {
+                    // connect all
+                    if !Rc::ptr_eq(set0, set1) {
+                        let set: FxHashSet<_>  = set0.borrow_mut().union(&set1.borrow_mut()).copied().collect();
+                        let set = Rc::new(RefCell::new(set));
+                        *set0 = set.clone();
+                        *set1 = set;
+                    }
+                }
+                [Some(set), None] => {
+                    set.borrow_mut().insert(jb1);
+                    set.borrow_mut().insert(jb0);
+                    let ptr = set.clone();
+                    net.entry(jb1).or_insert_with(|| ptr);
+                }
+                [None, Some(set)] => {
+                    set.borrow_mut().insert(jb1);
+                    set.borrow_mut().insert(jb0);
+                    let ptr = set.clone();
+                    net.entry(jb0).or_insert_with(|| ptr);
+                }
+                _ => {
+                    let set = [jb0, jb1];
+                    let set = Rc::new(RefCell::new(FxHashSet::from_iter(set)));
+                    net.entry(jb0).or_insert_with(||set.clone());
+                    net.entry(jb1).or_insert_with(||set);
+                },
+            }
+        });
+
+
+    for (key, val) in net.iter() {
+        let len = val.borrow().len();
+        let id = Rc::as_ptr(val) as usize;
+        println!("{key:?} with set #{id:x} length {len}");
     }
 
-    for i in 0..8 {
-        let total = circuits.values()
-            .map(HashSet::len)
-            .filter(|&n| n==i)
-            .count();
-
-        println!("{total} with {i}");
-    }
-
-    circuits.values()
-        .map(HashSet::len)
+    net.values()
+        .unique_by(|set| Rc::as_ptr(set))
+        .map(|set| set.borrow_mut().len() as u64)
+        .map(|len| len.max(1))
         .sorted()
         .rev()
         .take(3)
-        .filter(|&x| x > 0)
-        .map(u64::try_from)
-        .map(Result::unwrap)
+        .inspect(|x| println!("{x}"))
         .product()
 }
 
