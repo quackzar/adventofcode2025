@@ -1,15 +1,21 @@
 #![feature(uint_gather_scatter_bits)]
 
+
+use std::collections::HashSet;
+
+use arrayvec::ArrayVec;
 use itertools::Itertools;
+use rayon::prelude::*;
 
 fn main() {
     use std::io::Read;
     let mut input = String::new();
     std::io::stdin().read_to_string(&mut input).unwrap();
-    let res = solve1(&input);
+    let input = input.trim_start();
+    let res = solve1(input);
     println!("Solution 1: {res}");
-    // let res = solve2(&input);
-    // println!("Solution 2: {res}");
+    let res = solve2(input);
+    println!("Solution 2: {res}");
 }
 
 #[derive(Debug)]
@@ -17,7 +23,7 @@ struct Machine {
     n: u8,
     lights: u32,
     buttons: Vec<u32>,
-    joltage: Vec<u16>,
+    joltage: ArrayVec<u16, 16>,
 }
 
 impl std::fmt::Display for Machine {
@@ -72,7 +78,7 @@ fn parse(input: &str) -> Vec<Machine> {
             iter.next(); // skip '['
             let mut lights: u32 = 0;
             let mut i: u8 = 0;
-            while *iter.peek().unwrap() != ']' {
+            while *iter.peek().expect("end of lights section") != ']' {
                 let is_on = iter.next().unwrap() != '.';
                 if is_on {
                     lights |= 1 << i;
@@ -108,7 +114,7 @@ fn parse(input: &str) -> Vec<Machine> {
             }
 
             num.clear();
-            let mut joltage = Vec::new();
+            let mut joltage = ArrayVec::new();
             while let Some(c) = iter.next_if(|c| *c != '}') {
                 match c {
                     '0'..='9' => {
@@ -140,7 +146,7 @@ fn parse(input: &str) -> Vec<Machine> {
 fn solve1(input: &str) -> u32 {
     let machines = parse(input);
     machines
-        .into_iter()
+        .into_par_iter()
         .map(|machine| {
             let lights = machine.lights;
             let mut depth = 0;
@@ -166,17 +172,100 @@ fn solve1(input: &str) -> u32 {
         .sum()
 }
 
+fn solve2(input: &str) -> u32 {
+    let machines = parse(input);
+    machines
+        .into_iter()
+        .map(|machine| {
+            // We want to search through the buttons but try to apply
+            // greedily the buttons with most value
+            println!("solving machine:\n {machine}");
+            let buttons: Vec<_> = machine
+                .buttons
+                .clone()
+                .into_iter()
+                .sorted_by(|a, b| {
+                    // sort by largest
+                    a.count_ones().cmp(&b.count_ones())
+                })
+                .sorted_by(|a, b| {
+                    // sort by required joltage
+                    for (i, _) in machine
+                        .joltage
+                        .iter()
+                        .copied()
+                        .enumerate()
+                        .sorted_by_key(|(_, jolts)| *jolts)
+                        .rev()
+                    {
+                        let i = i as u8;
+                        match a.extract_bits(1 << i).cmp(&b.extract_bits(1 << i)) {
+                            std::cmp::Ordering::Equal => continue,
+                            other => return other,
+                        }
+                    }
+                    std::cmp::Ordering::Equal
+                })
+                .collect();
+
+            let mut stack: Vec<(ArrayVec<i16, 16>, u32)> = Vec::new();
+            let initial = machine.joltage.iter().map(|&x| x as i16).collect();
+            stack.push((initial, 0));
+            let mut pc = 0;
+
+            let mut seen = HashSet::<ArrayVec<i16, 16>>::new();
+            'outer: loop {
+                let Some((state, depth )) = stack.pop() else {
+                    panic!("search space exhausted")
+                };
+
+                let iter = buttons.clone().into_iter().enumerate();
+                for (j, b) in iter {
+                    let mut state = state.clone();
+                    // apply button
+                    for i in 0..machine.n {
+                        state[i as usize] -= b.extract_bits(1 << i) as i16;
+                    }
+                    if state.iter().any(|&x| x < 0) {
+                        // we broke the machine (bad path)
+                        continue;
+                    }
+                    if state.iter().all(|&x| x == 0) {
+                        // complete!
+                        println!("complete after {pc}");
+                        break 'outer depth + 1;
+                    }
+                    // We have been here before
+                    if !seen.insert(state.clone()) {
+                        println!("we have been here before");
+                        break;
+                    }
+                    // We are not done,
+                    pc += 1;
+                    stack.push((state, depth + 1));
+                }
+            }
+        })
+        .sum()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    static TEST_INPUT: &str = "
-    [.##.] (3) (1,3) (2) (2,3) (0,2) (0,1) {3,5,4,7}
-    [...#.] (0,2,3,4) (2,3) (0,4) (0,1,2) (1,2,3,4) {7,5,12,7,2}
-    [.###.#] (0,1,2,3,4) (0,3,4) (0,1,2,4,5) (1,2) {10,11,11,5,10,5}";
+    static TEST_INPUT: &str = "\
+[.##.] (3) (1,3) (2) (2,3) (0,2) (0,1) {3,5,4,7}
+[...#.] (0,2,3,4) (2,3) (0,4) (0,1,2) (1,2,3,4) {7,5,12,7,2}
+[.###.#] (0,1,2,3,4) (0,3,4) (0,1,2,4,5) (1,2) {10,11,11,5,10,5}";
 
     #[test]
-    fn test() {
+    fn part1() {
         let res = solve1(TEST_INPUT);
         assert_eq!(res, 7);
+    }
+
+    #[test]
+    fn part2() {
+        let res = solve2(TEST_INPUT);
+        assert_eq!(res, 33);
     }
 }
