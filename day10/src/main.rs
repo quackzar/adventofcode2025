@@ -208,41 +208,29 @@ fn solve2(input: &str) -> u32 {
                 })
                 .collect();
 
-            let mut stack: Vec<(ArrayVec<i16, 16>, u32)> = Vec::new();
-            let initial = machine.joltage.iter().map(|&x| x as i16).collect();
-            stack.push((initial, 0));
+            let initial : ArrayVec<i16, 16> = machine.joltage.iter().map(|&x| x as i16).collect();
             let mut pc = 0;
 
-            let mut seen = HashSet::<ArrayVec<i16, 16>>::new();
+            let mut stack = Vec::new();
+            buttons.iter().copied().for_each(|b| stack.push((b, initial.clone(), 0)));
             'outer: loop {
-                let Some((state, depth )) = stack.pop() else {
-                    panic!("search space exhausted")
-                };
+                pc += 1;
+                let (button, mut state, depth) = stack.pop().unwrap();
+                for i in 0..machine.n {
+                    state[i as usize] -= button.extract_bits(1 << i) as i16;
+                }
+                if state.iter().any(|&x| x < 0) {
+                    // we broke the machine (bad path)
+                    continue;
+                }
+                if state.iter().all(|&x| x == 0) {
+                    // complete!
+                    println!("complete after {pc} attempts!");
+                    break 'outer depth + 1
+                }
 
-                let iter = buttons.clone().into_iter().enumerate();
-                for (j, b) in iter {
-                    let mut state = state.clone();
-                    // apply button
-                    for i in 0..machine.n {
-                        state[i as usize] -= b.extract_bits(1 << i) as i16;
-                    }
-                    if state.iter().any(|&x| x < 0) {
-                        // we broke the machine (bad path)
-                        continue;
-                    }
-                    if state.iter().all(|&x| x == 0) {
-                        // complete!
-                        println!("complete after {pc}");
-                        break 'outer depth + 1;
-                    }
-                    // We have been here before
-                    if !seen.insert(state.clone()) {
-                        println!("we have been here before");
-                        break;
-                    }
-                    // We are not done,
-                    pc += 1;
-                    stack.push((state, depth + 1));
+                for b in buttons.iter() {
+                    stack.push((*b, state.clone(), depth + 1));
                 }
             }
         })
