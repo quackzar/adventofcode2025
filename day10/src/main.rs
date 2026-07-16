@@ -1,10 +1,11 @@
 #![feature(uint_gather_scatter_bits)]
 
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, VecDeque};
+use foldhash::HashSet;
 
 use arrayvec::ArrayVec;
-use itertools::Itertools;
+use itertools::{Itertools, multizip};
 use rayon::prelude::*;
 
 fn main() {
@@ -177,60 +178,82 @@ fn solve2(input: &str) -> u32 {
     machines
         .into_iter()
         .map(|machine| {
-            // We want to search through the buttons but try to apply
-            // greedily the buttons with most value
-            println!("solving machine:\n {machine}");
-            let buttons: Vec<_> = machine
-                .buttons
-                .clone()
-                .into_iter()
-                .sorted_by(|a, b| {
-                    // sort by largest
-                    a.count_ones().cmp(&b.count_ones())
-                })
-                .sorted_by(|a, b| {
-                    // sort by required joltage
-                    for (i, _) in machine
-                        .joltage
-                        .iter()
-                        .copied()
-                        .enumerate()
-                        .sorted_by_key(|(_, jolts)| *jolts)
-                        .rev()
-                    {
-                        let i = i as u8;
-                        match a.extract_bits(1 << i).cmp(&b.extract_bits(1 << i)) {
-                            std::cmp::Ordering::Equal => continue,
-                            other => return other,
+            let joltage: ArrayVec<_, 16> = machine.joltage.clone();
+            let mut buttons: Vec<_> = machine.buttons.iter()
+                .map(|b| {
+                    let mut button: ArrayVec<_, 16> = ArrayVec::new();
+                    for i in 0..machine.n {
+                        if b.extract_bits(1 << i) != 0 {
+                            button.push(i);
                         }
                     }
-                    std::cmp::Ordering::Equal
+                    button
+                }).collect();
+
+            println!("{buttons:?}");
+            let mut stack = VecDeque::new();
+
+            let mut set = ArrayVec::<_, 16>::from_iter(0..buttons.len());
+            set.retain(|b| {
+                joltage.iter().enumerate().any(|(i,j)| {
+                    if *j > 0 {
+                        buttons[*b].contains(&(i as u8))
+                    } else {
+                        false
+                    }
+
                 })
-                .collect();
+            });
+            for b in 0..buttons.len() {
+                stack.push_back((joltage.clone(), b, 0, set.clone()));
+            }
 
-            let initial : ArrayVec<i16, 16> = machine.joltage.iter().map(|&x| x as i16).collect();
-            let mut pc = 0;
+            let mut tried = HashSet::default();
 
-            let mut stack = Vec::new();
-            buttons.iter().copied().for_each(|b| stack.push((b, initial.clone(), 0)));
             'outer: loop {
-                pc += 1;
-                let (button, mut state, depth) = stack.pop().unwrap();
-                for i in 0..machine.n {
-                    state[i as usize] -= button.extract_bits(1 << i) as i16;
-                }
-                if state.iter().any(|&x| x < 0) {
-                    // we broke the machine (bad path)
-                    continue;
-                }
-                if state.iter().all(|&x| x == 0) {
-                    // complete!
-                    println!("complete after {pc} attempts!");
-                    break 'outer depth + 1
+                let (mut joltage, next, depth, mut set) = stack.pop_front().unwrap();
+                if !tried.insert((joltage.clone(), next, set.clone())) {
+                    // we have tried this
+                    // println!("already tried, skipping");
+                    continue
                 }
 
-                for b in buttons.iter() {
-                    stack.push((*b, state.clone(), depth + 1));
+
+                let button = &buttons[next];
+                let to_search = stack.len();
+               println!("{joltage:?} - set {set:?} - depth {depth:?} - next {next:?} | {button:?} - to search {to_search}");
+
+                for i in &buttons[next] {
+                    let j = &mut joltage[*i as usize];
+                    *j -= 1;
+                }
+
+                set.retain(|b| {
+                    // Remove bad buttons
+                    !buttons[*b].iter().any(|i| joltage[*i as usize] == 0)
+                });
+                set.retain(|b| {
+                    // Remove unhelpful buttons
+                    joltage.iter().enumerate().any(|(i,_)| {
+                        buttons[*b].contains(&(i as u8))
+                    })
+                });
+
+                // Sort by most value button (most needed to contiue)
+                set.sort_unstable_by(|x, y| {
+                    let xs : u32 = buttons[*x].iter().map(|i| joltage[*i as usize] as u32).sum();
+                    let ys : u32 = buttons[*y].iter().map(|i| joltage[*i as usize] as u32).sum();
+                    xs.cmp(&ys)
+                });
+
+                if joltage.iter().all(|j| *j == 0) {
+                    let tried = tried.len();
+                    println!("success after {tried} attempts");
+                    break depth + 1;
+                }
+
+                for next in set.iter() {
+                    stack.push_front((joltage.clone(), *next, depth+1, set.clone()));
                 }
             }
         })
