@@ -70,6 +70,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "day09"
+version = "0.1.0"
+dependencies = [
+ "itertools 0.14.0",
+ "rustc-hash",
+]
+
+[[package]]
 name = "day10"
 version = "0.1.0"
 dependencies = [
@@ -80,12 +88,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "day09"
+name = "day11"
 version = "0.1.0"
-dependencies = [
- "itertools",
- "rustc-hash",
-]
 
 [[package]]
 name = "either"
