@@ -1,11 +1,9 @@
-#![feature(map_try_insert)]
 #![feature(uint_gather_scatter_bits)]
 
 use foldhash::{HashMap, HashSet};
-use std::collections::{BTreeSet, VecDeque};
-
+use std::collections::VecDeque;
 use arrayvec::ArrayVec;
-use itertools::{Itertools, multizip};
+use itertools::Itertools;
 use rayon::prelude::*;
 
 fn main() {
@@ -19,12 +17,14 @@ fn main() {
     println!("Solution 2: {res}");
 }
 
+const CAP : usize = 16;
+
 #[derive(Debug)]
 struct Machine {
     n: u8,
     lights: u32,
     buttons: Vec<u32>,
-    joltage: ArrayVec<u16, 16>,
+    joltage: ArrayVec<u16, CAP>,
 }
 
 impl std::fmt::Display for Machine {
@@ -177,11 +177,12 @@ fn solve2(input: &str) -> u32 {
     let machines = parse(input);
     machines
         .into_par_iter()
-        .map(|machine| {
-            let initial_joltage: ArrayVec<_, 16> = machine.joltage.iter().copied().map(|j| j as i16).collect();
+        .enumerate()
+        .map(|(num, machine)| {
+            let initial_joltage: ArrayVec<_, CAP> = machine.joltage.iter().copied().map(|j| j as i16).collect();
             let buttons: Vec<_> = machine.buttons.iter()
                 .map(|b| {
-                    let mut button: ArrayVec<_, 16> = ArrayVec::new();
+                    let mut button: ArrayVec<_, CAP> = ArrayVec::new();
                     for i in 0..machine.n {
                         if b.extract_bits(1 << i) != 0 {
                             button.push(i);
@@ -192,17 +193,7 @@ fn solve2(input: &str) -> u32 {
 
             let mut stack = VecDeque::new();
 
-            let mut set = ArrayVec::<_, 16>::from_iter(0..buttons.len() as u8);
-            set.retain(|b| {
-                initial_joltage.iter().enumerate().any(|(i,j)| {
-                    if *j > 0 {
-                        buttons[*b as usize].contains(&(i as u8))
-                    } else {
-                        false
-                    }
-
-                })
-            });
+            let set = ArrayVec::<_, CAP>::from_iter(0..buttons.len() as u8);
 
             let mut button_mat = HashMap::default();
             let n = machine.n;
@@ -215,19 +206,16 @@ fn solve2(input: &str) -> u32 {
                 }
             }
 
-
-
-            let weights = ArrayVec::from([0; 16]);
+            let weights = ArrayVec::from([0; CAP]);
             stack.push_back((weights.clone(), 0));
 
-            let mut tried = HashMap::default();
+            let mut tried = HashSet::default();
             let mut attempts = 0;
 
             'outer: loop {
                 attempts += 1;
                 let (weights, depth) = stack.pop_front().unwrap();
 
-                println!("{weights:?} | {depth:?}");
                 let mut joltage = initial_joltage.clone();
                 for i in 0..n {
                     for j in 0..m {
@@ -237,7 +225,7 @@ fn solve2(input: &str) -> u32 {
 
                 if joltage.iter().all(|j| *j == 0) {
                     let x = stack.len();
-                    println!("{machine:?} \n succeded after {attempts} attempts {x} left on stack [depth: {depth}]");
+                    println!("Machine {num} has succeded after {attempts} attempts {x} left on stack [depth: {depth}]");
                     break 'outer depth;
                 }
 
@@ -265,11 +253,21 @@ fn solve2(input: &str) -> u32 {
                     let mut weights = weights.clone();
                     weights[*next as usize] += w;
                     let depth = depth + (w as u32);
-                    if tried.try_insert(weights.clone(), depth).is_ok() {
+                    if tried.insert(weights.clone()) {
                         stack.push_front((weights, depth));
                     }
                 }
 
+                for next in set.iter().rev() {
+                    let w : i16 = buttons[*next as usize].iter().map(|i| joltage[*i as usize]).min().unwrap();
+                    let w = w / 2 + 1;
+                    let mut weights = weights.clone();
+                    weights[*next as usize] += w;
+                    let depth = depth + (w as u32);
+                    if tried.insert(weights.clone()) {
+                        stack.push_back((weights, depth));
+                    }
+                }
             }
         })
     .sum()
