@@ -1,11 +1,11 @@
+#![feature(map_try_insert)]
 #![feature(uint_gather_scatter_bits)]
 
-use foldhash::HashSet;
+use foldhash::{HashMap, HashSet};
 use std::collections::{BTreeSet, VecDeque};
 
 use arrayvec::ArrayVec;
 use itertools::{Itertools, multizip};
-use nalgebra::{DMatrix, linalg};
 use rayon::prelude::*;
 
 fn main() {
@@ -176,12 +176,10 @@ fn solve1(input: &str) -> u32 {
 fn solve2(input: &str) -> u32 {
     let machines = parse(input);
     machines
-        .into_iter()
+        .into_par_iter()
         .map(|machine| {
-            let joltage: ArrayVec<_, 16> = machine.joltage.clone();
-            let mut buttons: Vec<_> = machine
-                .buttons
-                .iter()
+            let initial_joltage: ArrayVec<_, 16> = machine.joltage.iter().copied().map(|j| j as i16).collect();
+            let buttons: Vec<_> = machine.buttons.iter()
                 .map(|b| {
                     let mut button: ArrayVec<_, 16> = ArrayVec::new();
                     for i in 0..machine.n {
@@ -190,51 +188,91 @@ fn solve2(input: &str) -> u32 {
                         }
                     }
                     button
-                })
-                .collect();
+                }).collect();
 
-            println!("{buttons:?}");
             let mut stack = VecDeque::new();
 
-            let mut set = ArrayVec::<_, 16>::from_iter(0..buttons.len());
+            let mut set = ArrayVec::<_, 16>::from_iter(0..buttons.len() as u8);
             set.retain(|b| {
-                joltage.iter().enumerate().any(|(i, j)| {
+                initial_joltage.iter().enumerate().any(|(i,j)| {
                     if *j > 0 {
-                        buttons[*b].contains(&(i as u8))
+                        buttons[*b as usize].contains(&(i as u8))
                     } else {
                         false
                     }
+
                 })
             });
-            for b in 0..buttons.len() {
-                stack.push_back((joltage.clone(), b, 0, set.clone()));
-            }
 
-            let m = buttons.len();
-            let n = machine.n as usize;
-
-            type c32 = nalgebra::Complex<f32>;
-
-            let mut big_button = DMatrix::<c32>::zeros(n, m);
-
-            for (j, b) in buttons.iter().enumerate() {
-                for i in b {
-                    let i = *i as usize;
-                    big_button[(i, j)] = c32::ONE;
+            let mut button_mat = HashMap::default();
+            let n = machine.n;
+            let m = buttons.len() as u8;
+            for j in 0..m {
+                for i in 0..n {
+                    if buttons[j as usize].contains(&i) {
+                        button_mat.insert((i,j), 1i16);
+                    }
                 }
             }
-            let joltage = nalgebra::DVector::from_iterator(
-                n,
-                joltage.iter().copied().map(|x| c32::new(x as f32, 0.)),
-            );
 
-            let decomp = big_button.svd(true, true);
-            let weights = decomp.solve(&joltage, 0.001).unwrap();
-            println!("{weights:?}");
 
-            weights.sum().re as u32
+
+            let weights = ArrayVec::from([0; 16]);
+            stack.push_back((weights.clone(), 0));
+
+            let mut tried = HashMap::default();
+            let mut attempts = 0;
+
+            'outer: loop {
+                attempts += 1;
+                let (weights, depth) = stack.pop_front().unwrap();
+
+                println!("{weights:?} | {depth:?}");
+                let mut joltage = initial_joltage.clone();
+                for i in 0..n {
+                    for j in 0..m {
+                        joltage[i as usize] -= button_mat.get(&(i,j)).copied().unwrap_or_default() * weights[j as usize];
+                    }
+                }
+
+                if joltage.iter().all(|j| *j == 0) {
+                    let x = stack.len();
+                    println!("{machine:?} \n succeded after {attempts} attempts {x} left on stack [depth: {depth}]");
+                    break 'outer depth;
+                }
+
+                let mut set = set.clone();
+                set.retain(|b| {
+                    // Remove bad buttons
+                    !buttons[*b as usize].iter().any(|i| joltage[*i as usize] == 0)
+                });
+                set.retain(|b| {
+                    // Remove unhelpful buttons
+                    joltage.iter().enumerate().any(|(i,_)| {
+                        buttons[*b as usize].contains(&(i as u8))
+                    })
+                });
+
+                // Sort by most valuable button
+                set.sort_unstable_by(|x, y| {
+                    let xs : u32 = buttons[*x as usize].iter().map(|i| joltage[*i as usize] as u32).sum();
+                    let ys : u32 = buttons[*y as usize].iter().map(|i| joltage[*i as usize] as u32).sum();
+                    xs.cmp(&ys)
+                });
+
+                for next in set.iter() {
+                    let w : i16 = buttons[*next as usize].iter().map(|i| joltage[*i as usize]).min().unwrap();
+                    let mut weights = weights.clone();
+                    weights[*next as usize] += w;
+                    let depth = depth + (w as u32);
+                    if tried.try_insert(weights.clone(), depth).is_ok() {
+                        stack.push_front((weights, depth));
+                    }
+                }
+
+            }
         })
-        .sum()
+    .sum()
 }
 
 #[cfg(test)]
