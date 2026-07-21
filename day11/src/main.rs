@@ -16,6 +16,9 @@ struct Name([u8; 3]);
 
 const YOU: Name = Name(*b"you");
 const OUT: Name = Name(*b"out");
+const SVR: Name = Name(*b"svr");
+const DAC: Name = Name(*b"dac");
+const FFT: Name = Name(*b"fft");
 
 impl std::fmt::Debug for Name {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -62,7 +65,41 @@ fn solve1(input: &str) -> u32 {
 }
 
 fn solve2(input: &str) -> u32 {
-    todo!()
+    let map = parse(input);
+
+    let mut paths = Vec::new();
+    let mut stack = Vec::new();
+    stack.push((SVR, vec![]));
+
+    // TODO:
+    //
+    // this is a DAG.
+    //
+    // 1. Find FFT first
+    // 2. Then find DAC
+    // 3. Then find OUT
+
+
+    while let Some((curr, mut path)) = stack.pop() {
+        path.push(curr);
+        if curr == OUT {
+            paths.push(path);
+            continue;
+        }
+
+        if let Some(devices) = map.get(&curr) {
+            for device in devices {
+                stack.push((*device, path.clone()))
+            }
+        }
+    }
+
+    println!("found");
+    for path in paths.iter() {
+        println!("{path:?}");
+    }
+
+    paths.into_iter().filter(|path| path.contains(&DAC) && path.contains(&FFT)).count() as u32
 }
 
 
@@ -70,7 +107,7 @@ fn solve2(input: &str) -> u32 {
 mod tests {
     use super::*;
 
-    const EXAMPLE: &str = "\
+    const EXAMPLE1: &str = "\
 aaa: you hhh
 you: bbb ccc
 bbb: ddd eee
@@ -82,8 +119,28 @@ ggg: out
 hhh: ccc fff iii
 iii: out";
 
+    const EXAMPLE2: &str = "\
+svr: aaa bbb
+aaa: fft
+fft: ccc
+bbb: tty
+tty: ccc
+ccc: ddd eee
+ddd: hub
+hub: fff
+eee: dac
+dac: fff
+fff: ggg hhh
+ggg: out
+hhh: out";
+
     #[test]
     fn part1() {
-        assert_eq!(solve1(EXAMPLE), 5);
+        assert_eq!(solve1(EXAMPLE1), 5);
+    }
+
+    #[test]
+    fn part2() {
+        assert_eq!(solve2(EXAMPLE2), 2);
     }
 }
